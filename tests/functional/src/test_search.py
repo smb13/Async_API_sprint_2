@@ -1,22 +1,8 @@
 import uuid
 
-import aiohttp
 import pytest
-from elasticsearch import AsyncElasticsearch
-from elasticsearch.helpers import async_bulk
 
-from tests.functional.settings import test_settings
-
-
-#  Название теста должно начинаться со слова `test_`.
-#  Любой тест с асинхронными вызовами нужно оборачивать декоратором `pytest.mark.asyncio`,
-#  который следит за запуском и работой цикла событий.
-
-@pytest.mark.asyncio
-async def test_search():
-
-    # 1. Генерируем данные для ES
-    es_data = [{
+ES_MOVIES_TEST_DATA = [{
         'uuid': str(uuid.uuid4()),
         'imdb_rating': 8.5,
         'genre': [
@@ -40,41 +26,18 @@ async def test_search():
         ],
     } for _ in range(60)]
 
-    bulk_query: list[dict] = []
-    for row in es_data:
-        data = {'_index': 'movies', '_id': row['uuid']}
-        data.update({'_source': row})
-        bulk_query.append(data)
 
-    # 2. Загружаем данные в ES
-    es_client = AsyncElasticsearch(hosts=test_settings.es_host, verify_certs=False)
-    if await es_client.indices.exists(index=test_settings.es_index):
-        await es_client.indices.delete(index=test_settings.es_index)
-    await es_client.indices.create(
-        index=test_settings.es_index,
-        mappings=test_settings.es_index_mapping[test_settings.es_index],
-        settings=test_settings.es_index_settings
-    )
+@pytest.mark.parametrize(
+    'es_data, query_data, expected_answer', [
+        (ES_MOVIES_TEST_DATA, {'search': 'Star'}, {'status': 200, 'length': 50}),
+        (ES_MOVIES_TEST_DATA, {'search': 'Mashed potato'}, {'status': 404, 'length': 1})
+    ]
+)
+@pytest.mark.asyncio(scope='session')
+async def test_search(es_write_data, make_get_request, es_data: list[dict], query_data, expected_answer):
+    await es_write_data(es_data)
 
-    updated, errors = await async_bulk(client=es_client, actions=bulk_query)
+    response = await make_get_request('/api/v1/films/search', query_data)
 
-    await es_client.close()
-
-    if errors:
-        raise Exception('Ошибка записи данных в Elasticsearch')
-
-    # 3. Запрашиваем данные из ES по API
-
-    session = aiohttp.ClientSession()
-    url = test_settings.service_url + '/api/v1/films/search/'
-    query_data = {'query': 'Star'}
-    async with session.get(url, params=query_data) as response:
-        body = await response.json()
-        # headers = response.headers
-        status = response.status
-    await session.close()
-
-    # 4. Проверяем ответ
-
-    assert status == 200
-    assert len(body) == 50
+    assert response['status'] == expected_answer['status']
+    assert len(response['body']) == expected_answer['length']

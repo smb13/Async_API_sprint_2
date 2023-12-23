@@ -1,7 +1,7 @@
 version: '3'
 services:
   es:
-    image: elasticsearch:8.6.2
+    image: elasticsearch:8.11.3
     environment:
       - discovery.type=single-node
       - xpack.security.enabled=false
@@ -33,7 +33,6 @@ services:
     environment:
       - ELASTIC_HOST=es
       - REDIS_HOST=redis
-      - ETL_STATE_FILE_PATH=state/storage.json
     depends_on:
       es:
         condition: service_healthy
@@ -55,18 +54,18 @@ services:
       - ES_HOST=http://es:9200
       - REDIS_HOST=redis
       - API_HOST=api
-      - PYTHONPATH=/
       - SERVICE_URL=http://api:8000
     volumes:
-      - ../:/tests:ro
+      - ../:/opt/app/tests:ro
+      - ../../pytest.ini:/opt/app/pytest.ini:ro
     depends_on:
       api:
         condition: service_healthy
     entrypoint: >
-      sh -c "pip install -r /tests/functional/requirements.txt
-      && python3 /tests/functional/utils/wait_for_es.py
-      && python3 /tests/functional/utils/wait_for_redis.py
-      && pytest /tests/functional/src -o cache_dir=~/.my_cache_dir"
+      sh -c "pip install -r tests/functional/requirements.txt
+      && PYTHONPATH=. python3 tests/functional/utils/wait_for_es.py
+      && PYTHONPATH=. python3 tests/functional/utils/wait_for_redis.py
+      && pytest"
     healthcheck:
       test: [ "CMD-SHELL", "curl -sS http://127.0.0.1:8000 || exit 1" ]
       interval: 10s

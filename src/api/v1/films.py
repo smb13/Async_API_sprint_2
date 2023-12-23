@@ -81,23 +81,6 @@ class FilmDetails(Film):
     )
 
 
-# Регистрируем обработчик для запроса данных о фильме.
-@router.get('/{film_id}', response_model=FilmDetails,
-            description='Получение информации о фильме', name='Получение информации о фильме')
-async def film_details(
-        film_id: UUID = Path(..., description='Идентификатор фильма',
-                             example='3d825f60-9fff-4dfe-b294-1a45fa1e115d'),
-        film_service: FilmService = Depends(get_film_service)
-) -> FilmDetails:
-    film = await film_service.get_by_id(film_id)
-    if not film:
-        # Если фильм не найден, отдаём 404 статус
-        raise HTTPException(status_code=HTTPStatus.NOT_FOUND, detail='film not found')
-
-    # Перекладываем данные из models.Film в Film.
-    return FilmDetails(**film.model_dump())
-
-
 @router.get('/', response_model=list[Film],
             description='Получение списка фильмов', name='Получение списка фильмов')
 async def films_list(
@@ -116,6 +99,8 @@ async def films_list(
     return list(map(lambda film: Film(**film.model_dump()), films))
 
 
+@router.get('/search', response_model=list[Film],
+            description='Поиск фильмов', name='Поиск фильмов')
 @router.get('/search/', response_model=list[Film],
             description='Поиск фильмов', name='Поиск фильмов')
 async def films_search(
@@ -132,3 +117,20 @@ async def films_search(
 
     # Перекладываем данные из models.Film в Film.
     return list(map(lambda film: Film(**film.model_dump()), films))
+
+
+# Регистрируем обработчик для запроса данных о фильме.
+@router.get('/{film_id}', response_model=FilmDetails,
+            description='Получение информации о фильме', name='Получение информации о фильме')
+async def film_details(
+        film_id: UUID = Path(..., description='Идентификатор фильма',
+                             example='3d825f60-9fff-4dfe-b294-1a45fa1e115d'),
+        film_service: FilmService = Depends(get_film_service)
+) -> FilmDetails:
+    film = await film_service.get_by_id(film_id)
+    if not film:
+        # Если фильм не найден, отдаём 404 статус
+        raise HTTPException(status_code=HTTPStatus.NOT_FOUND, detail='film not found')
+
+    # Перекладываем данные из models.Film в Film.
+    return FilmDetails(**film.model_dump())

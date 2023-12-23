@@ -5,6 +5,7 @@ from pydantic_settings import BaseSettings
 class TestSettings(BaseSettings):
     es_host: str = Field('http://127.0.0.1:9200')
     es_index: str = 'movies'
+    es_id_field: str = 'uuid'
     es_index_settings: dict = {
         "refresh_interval": "1s",
         "analysis": {

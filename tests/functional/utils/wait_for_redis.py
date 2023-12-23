@@ -1,6 +1,6 @@
 import time
 
-from redis.asyncio import Redis
+from redis import Redis
 from tests.functional.settings import test_settings
 
 if __name__ == '__main__':
