@@ -2,6 +2,8 @@ import uuid
 
 import pytest
 
+from tests.functional.settings import search_test_settings
+
 ES_MOVIES_TEST_DATA = [{
         'uuid': str(uuid.uuid4()),
         'imdb_rating': 8.5,
@@ -35,9 +37,9 @@ ES_MOVIES_TEST_DATA = [{
 )
 @pytest.mark.asyncio(scope='session')
 async def test_search(es_write_data, make_get_request, es_data: list[dict], query_data, expected_answer):
-    await es_write_data(es_data)
+    await es_write_data(es_data, search_test_settings)
 
-    response = await make_get_request('/api/v1/films/search', query_data)
+    response = await make_get_request('/api/v1/films/search', query_data, search_test_settings)
 
     assert response['status'] == expected_answer['status']
     assert len(response['body']) == expected_answer['length']

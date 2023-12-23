@@ -3,12 +3,12 @@ import pytest
 import pytest_asyncio
 from elasticsearch import AsyncElasticsearch
 
-from tests.functional.settings import test_settings
+from tests.functional.settings import BaseTestSettings, session_settings
 
 
 @pytest_asyncio.fixture(scope='session')
 async def es_client():
-    client = AsyncElasticsearch(hosts=test_settings.es_host, verify_certs=False)
+    client = AsyncElasticsearch(hosts=session_settings.es_host, verify_certs=False)
     yield client
     await client.close()
 
@@ -22,20 +22,20 @@ async def http_session():
 
 @pytest.fixture
 def es_write_data(es_client):
-    async def inner(data: list[dict]):
+    async def inner(data: list[dict], settings: BaseTestSettings):
         # 2. Загружаем данные в ES
-        if await es_client.indices.exists(index=test_settings.es_index):
-            await es_client.indices.delete(index=test_settings.es_index)
+        if await es_client.indices.exists(index=settings.es_index):
+            await es_client.indices.delete(index=settings.es_index)
         await es_client.indices.create(
-            index=test_settings.es_index,
-            mappings=test_settings.es_index_mapping[test_settings.es_index],
-            settings=test_settings.es_index_settings
+            index=settings.es_index,
+            mappings=settings.es_index_mapping[settings.es_index],
+            settings=settings.es_index_settings
         )
 
         prepared_query: list[dict] = []
         for row in data:
             prepared_query.extend(
-                [{'index': {'_index': test_settings.es_index, '_id': row[test_settings.es_id_field]}}, row]
+                [{'index': {'_index': settings.es_index, '_id': row[settings.es_id_field]}}, row]
             )
         response = await es_client.bulk(operations=prepared_query, refresh=True)
 
@@ -49,9 +49,9 @@ def es_write_data(es_client):
 
 @pytest.fixture
 def make_get_request(http_session):
-    async def inner(url: str, query: dict):
+    async def inner(url: str, query: dict, settings: BaseTestSettings):
         async with http_session.get(
-                test_settings.service_url + url, params={'query': query['search']}
+                settings.service_url + url, params={'query': query['search']}
         ) as response:
             body = await response.json()
             headers = response.headers

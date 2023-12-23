@@ -2,9 +2,15 @@ from pydantic import Field
 from pydantic_settings import BaseSettings
 
 
-class TestSettings(BaseSettings):
+class SessionSettings(BaseSettings):
     es_host: str = Field('http://127.0.0.1:9200')
-    es_index: str = 'movies'
+
+    redis_host: str = Field('redis://127.0.0.1:6379')
+    redis_port: int = Field(6379)
+
+
+class BaseTestSettings(BaseSettings):
+    es_index: str
     es_id_field: str = 'uuid'
     es_index_settings: dict = {
         "refresh_interval": "1s",
@@ -46,6 +52,14 @@ class TestSettings(BaseSettings):
             }
         }
     }
+    es_index_mapping: dict
+
+    service_url: str = Field('http://127.0.0.1:8000')
+
+
+class SearchTestSettings(BaseTestSettings):
+    es_index: str = 'movies'
+
     es_index_mapping: dict = {
         "movies": {
             "dynamic": "strict",
@@ -170,9 +184,6 @@ class TestSettings(BaseSettings):
         }
     }
 
-    redis_host: str = Field('redis://127.0.0.1:6379')
-    redis_port: int = Field(6379)
-    service_url: str = Field('http://127.0.0.1:8000')
 
-
-test_settings = TestSettings()
+session_settings = SessionSettings()
+search_test_settings = SearchTestSettings()

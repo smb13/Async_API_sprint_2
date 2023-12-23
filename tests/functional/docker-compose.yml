@@ -57,7 +57,7 @@ services:
       - SERVICE_URL=http://api:8000
     volumes:
       - ../:/opt/app/tests:ro
-      - ../../pytest.ini:/opt/app/pytest.ini:ro
+      - ../../setup.cfg:/opt/app/setup.cfg:ro
     depends_on:
       api:
         condition: service_healthy
