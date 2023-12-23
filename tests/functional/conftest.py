@@ -49,9 +49,10 @@ def es_write_data(es_client):
 
 @pytest.fixture
 def make_get_request(http_session):
-    async def inner(url: str, query: dict, settings: BaseTestSettings):
+    async def inner(url: str, settings: BaseTestSettings, **kwargs):
+        print(kwargs)
         async with http_session.get(
-                settings.service_url + url, params={'query': query['search']}
+                settings.service_url + url, params={**kwargs}
         ) as response:
             body = await response.json()
             headers = response.headers
