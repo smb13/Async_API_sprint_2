@@ -1,6 +1,8 @@
 from pydantic import Field
 from pydantic_settings import BaseSettings
 
+from tests.functional.testdata.es_test_data import ES_MOVIES_NUMBER_OF_TEST_RECORDS
+
 
 class SessionSettings(BaseSettings):
     es_host: str = Field('http://127.0.0.1:9200')
@@ -187,7 +189,7 @@ class SearchTestSettings(BaseTestSettings):
 class FilmTestSettings(BaseTestSettings):
     es_index: str = 'movies'
     prefix: str = '/api/v1/films'
-    page_size: int = 50
+    page_size: int = ES_MOVIES_NUMBER_OF_TEST_RECORDS + 1
 
 
 session_settings = SessionSettings()
