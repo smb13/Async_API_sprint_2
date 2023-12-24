@@ -33,7 +33,7 @@ async def test_genre_list(es_write_data, es_drop_index, make_get_request, es_cli
     # 1. Подготовка данных.
     es_data = list([{
         'uuid': str(uuid.uuid4()),
-        'name': 'Comedy' + str(i),
+        'name': 'Comedy' + str(random.randint(1, 100000)),
     } for i in range(random.randint(1, 1000))])
     await es_write_data(es_data, genre_test_settings)
 
@@ -55,15 +55,13 @@ async def test_genre_list(es_write_data, es_drop_index, make_get_request, es_cli
     await es_drop_index(genre_test_settings)
     await redis_flush_db()
 
-    pass
-
 
 @pytest.mark.asyncio(scope="session")
 async def test_genre_get(es_write_data, redis_flush_db, make_get_request, es_drop_index):
     # 1. Подготовка данных.
     es_data = list([{
         'uuid': str(uuid.uuid4()),
-        'name': 'Comedy' + str(i),
+        'name': 'Comedy' + str(random.randint(1, 100000)),
     } for i in range(random.randint(1, 1000))])
     await es_write_data(es_data, genre_test_settings)
 
@@ -90,7 +88,3 @@ async def test_genre_get(es_write_data, redis_flush_db, make_get_request, es_dro
         response = await make_get_request(f'/api/v1/genres/{row["uuid"]}', genre_test_settings)
         assert response['status'] == 200
         assert response['body'] == row
-
-    # result = await get_all_genres(make_get_request, page_size, len(es_data))
-    # assert len(result) == len(es_data)
-    # assert result == es_data
