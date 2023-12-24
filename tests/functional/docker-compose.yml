@@ -50,6 +50,7 @@ services:
 
   tests:
     image: movies-api-image
+    pull_policy: never
     environment:
       - ES_HOST=http://es:9200
       - REDIS_HOST=redis

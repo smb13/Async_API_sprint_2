@@ -5,7 +5,7 @@ from pydantic_settings import BaseSettings
 class SessionSettings(BaseSettings):
     es_host: str = Field('http://127.0.0.1:9200')
 
-    redis_host: str = Field('redis://127.0.0.1:6379')
+    redis_host: str = Field('127.0.0.1')
     redis_port: int = Field(6379)
 
 
@@ -144,7 +144,14 @@ class SearchTestSettings(BaseTestSettings):
                     }
                 }
             }
-        },
+        }
+    }
+
+
+class GenreTestSettings(BaseTestSettings):
+    es_index: str = 'genres'
+
+    es_index_mapping: dict = {
         "genres": {
             "dynamic": "strict",
             "properties": {
@@ -156,34 +163,10 @@ class SearchTestSettings(BaseTestSettings):
                     "analyzer": "ru_en"
                 }
             }
-        },
-        "persons": {
-            "dynamic": "strict",
-            "properties": {
-                "uuid": {
-                    "type": "keyword"
-                },
-                "full_name": {
-                    "type": "text",
-                    "analyzer": "ru_en"
-                },
-                "films": {
-                    "type": "nested",
-                    "dynamic": "strict",
-                    "properties": {
-                        "uuid": {
-                            "type": "keyword"
-                        },
-                        "roles": {
-                            "type": "text",
-                            "analyzer": "ru_en"
-                        }
-                    }
-                }
-            }
         }
     }
 
 
 session_settings = SessionSettings()
 search_test_settings = SearchTestSettings()
+genre_test_settings = GenreTestSettings()
