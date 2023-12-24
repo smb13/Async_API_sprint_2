@@ -101,8 +101,6 @@ async def films_list(
 
 @router.get('/search', response_model=list[Film],
             description='Поиск фильмов', name='Поиск фильмов')
-@router.get('/search/', response_model=list[Film],
-            description='Поиск фильмов', name='Поиск фильмов')
 async def films_search(
         query: Annotated[str, Query(description='строка поиска', example='Star')] = None,
         sort: Annotated[str | None, Query(enum=['imdb_rating', '-imdb_rating'], description='Сортировка')] = None,

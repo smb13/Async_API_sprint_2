@@ -1,6 +1,8 @@
 from pydantic import Field
 from pydantic_settings import BaseSettings
 
+from tests.functional.testdata.es_test_data import ES_MOVIES_NUMBER_OF_TEST_RECORDS
+
 
 class SessionSettings(BaseSettings):
     es_host: str = Field('http://127.0.0.1:9200')
@@ -52,13 +54,6 @@ class BaseTestSettings(BaseSettings):
             }
         }
     }
-    es_index_mapping: dict
-
-    service_url: str = Field('http://127.0.0.1:8000')
-
-
-class SearchTestSettings(BaseTestSettings):
-    es_index: str = 'movies'
 
     es_index_mapping: dict = {
         "movies": {
@@ -184,6 +179,19 @@ class SearchTestSettings(BaseTestSettings):
         }
     }
 
+    service_url: str = Field('http://127.0.0.1:8000')
+
+
+class SearchTestSettings(BaseTestSettings):
+    es_index: str = 'movies'
+
+
+class FilmTestSettings(BaseTestSettings):
+    es_index: str = 'movies'
+    prefix: str = '/api/v1/films'
+    page_size: int = ES_MOVIES_NUMBER_OF_TEST_RECORDS + 1
+
 
 session_settings = SessionSettings()
 search_test_settings = SearchTestSettings()
+film_test_settings = FilmTestSettings()

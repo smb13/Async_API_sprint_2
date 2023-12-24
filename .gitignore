@@ -5,3 +5,6 @@ __pycache__/
 
 # JetBrains IDE
 /.idea/
+
+# venv
+/venv/
