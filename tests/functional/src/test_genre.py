@@ -34,7 +34,7 @@ async def test_genre_list(es_write_data, es_drop_index, make_get_request, es_cli
     es_data = list([{
         'uuid': str(uuid.uuid4()),
         'name': 'Comedy' + str(random.randint(1, 100000)),
-    } for i in range(random.randint(1, 1000))])
+    } for _ in range(random.randint(1, 1000))])
     await es_write_data(es_data, genre_test_settings)
 
     page_size = random.randint(10, 50)
@@ -62,7 +62,7 @@ async def test_genre_get(es_write_data, redis_flush_db, make_get_request, es_dro
     es_data = list([{
         'uuid': str(uuid.uuid4()),
         'name': 'Comedy' + str(random.randint(1, 100000)),
-    } for i in range(random.randint(1, 1000))])
+    } for _ in range(random.randint(1, 1000))])
     await es_write_data(es_data, genre_test_settings)
 
     indexes = [random.randint(0, len(es_data)-1) for _ in range(1, 20)]

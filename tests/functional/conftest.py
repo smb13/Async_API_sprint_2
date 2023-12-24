@@ -29,7 +29,7 @@ def es_drop_index(es_client) -> Callable:
 async def redis_client() -> Redis:
     client = Redis(host=session_settings.redis_host, port=session_settings.redis_port)
     yield client
-    await client.close()
+    await client.aclose()
 
 
 @pytest_asyncio.fixture

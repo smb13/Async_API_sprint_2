@@ -57,6 +57,29 @@ class BaseTestSettings(BaseSettings):
 
     service_url: str = Field('http://127.0.0.1:8000')
 
+
+class GenreTestSettings(BaseTestSettings):
+    es_index: str = 'genres'
+
+    es_index_mapping: dict = {
+        "genres": {
+            "dynamic": "strict",
+            "properties": {
+                "uuid": {
+                    "type": "keyword"
+                },
+                "name": {
+                    "type": "text",
+                    "analyzer": "ru_en"
+                }
+            }
+        }
+    }
+
+
+class SearchTestSettings(BaseTestSettings):
+    es_index: str = 'movies'
+
     es_index_mapping: dict = {
         "movies": {
             "dynamic": "strict",
@@ -145,30 +168,7 @@ class BaseTestSettings(BaseSettings):
     }
 
 
-class GenreTestSettings(BaseTestSettings):
-    es_index: str = 'genres'
-
-    es_index_mapping: dict = {
-        "genres": {
-            "dynamic": "strict",
-            "properties": {
-                "uuid": {
-                    "type": "keyword"
-                },
-                "name": {
-                    "type": "text",
-                    "analyzer": "ru_en"
-                }
-            }
-        }
-    }
-
-
-class SearchTestSettings(BaseTestSettings):
-    es_index: str = 'movies'
-
-
-class FilmTestSettings(BaseTestSettings):
+class FilmTestSettings(SearchTestSettings):
     es_index: str = 'movies'
     prefix: str = '/api/v1/films'
     page_size: int = ES_MOVIES_NUMBER_OF_TEST_RECORDS + 1
