@@ -8,6 +8,8 @@ from redis.asyncio import Redis
 
 from tests.functional.settings import BaseTestSettings, session_settings
 
+from testdata.generator import *
+
 
 @pytest_asyncio.fixture(scope='session')
 async def es_client() -> AsyncElasticsearch:
@@ -83,5 +85,30 @@ def make_get_request(http_session):
         return {'status': status, 'body': body, 'headers': headers}
 
         pass
+
+    return inner
+
+
+@pytest.fixture
+def get_all_records(make_get_request):
+    async def inner(settings: BaseTestSettings, url: str, page_size: int, limit: int) -> list[dict]:
+        query_data = {'page_size': page_size, 'page_number': 1}
+
+        result = []
+        while True:
+            response = await make_get_request(url, settings, **query_data)
+            if response['status'] == 404:
+                break
+
+            assert response['status'] == 200
+            assert len(response['body']) <= page_size
+            if len(response['body']) == 0:
+                break
+
+            result.extend(list[dict](response['body']))
+            assert len(result) <= limit
+            query_data['page_number'] += 1
+
+        return result
 
     return inner

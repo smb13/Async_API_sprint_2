@@ -174,7 +174,39 @@ class FilmTestSettings(SearchTestSettings):
     page_size: int = ES_MOVIES_NUMBER_OF_TEST_RECORDS + 1
 
 
+class PersonTestSettings(SearchTestSettings):
+    es_index: str = 'persons'
+    es_index_mapping: dict = {
+        "persons": {
+            "dynamic": "strict",
+            "properties": {
+                "uuid": {
+                    "type": "keyword"
+                },
+                "full_name": {
+                    "type": "text",
+                    "analyzer": "ru_en"
+                },
+                "films": {
+                    "type": "nested",
+                    "dynamic": "strict",
+                    "properties": {
+                        "uuid": {
+                            "type": "keyword"
+                        },
+                        "roles": {
+                            "type": "text",
+                            "analyzer": "ru_en"
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+
 session_settings = SessionSettings()
 search_test_settings = SearchTestSettings()
 film_test_settings = FilmTestSettings()
 genre_test_settings = GenreTestSettings()
+person_test_settings = PersonTestSettings()
