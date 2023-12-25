@@ -7,7 +7,7 @@ from tests.functional.testdata.es_test_data import ES_MOVIES_NUMBER_OF_TEST_RECO
 class SessionSettings(BaseSettings):
     es_host: str = Field('http://127.0.0.1:9200')
 
-    redis_host: str = Field('redis://127.0.0.1:6379')
+    redis_host: str = Field('127.0.0.1')
     redis_port: int = Field(6379)
 
 
@@ -54,6 +54,31 @@ class BaseTestSettings(BaseSettings):
             }
         }
     }
+
+    service_url: str = Field('http://127.0.0.1:8000')
+
+
+class GenreTestSettings(BaseTestSettings):
+    es_index: str = 'genres'
+
+    es_index_mapping: dict = {
+        "genres": {
+            "dynamic": "strict",
+            "properties": {
+                "uuid": {
+                    "type": "keyword"
+                },
+                "name": {
+                    "type": "text",
+                    "analyzer": "ru_en"
+                }
+            }
+        }
+    }
+
+
+class SearchTestSettings(BaseTestSettings):
+    es_index: str = 'movies'
 
     es_index_mapping: dict = {
         "movies": {
@@ -139,54 +164,11 @@ class BaseTestSettings(BaseSettings):
                     }
                 }
             }
-        },
-        "genres": {
-            "dynamic": "strict",
-            "properties": {
-                "uuid": {
-                    "type": "keyword"
-                },
-                "name": {
-                    "type": "text",
-                    "analyzer": "ru_en"
-                }
-            }
-        },
-        "persons": {
-            "dynamic": "strict",
-            "properties": {
-                "uuid": {
-                    "type": "keyword"
-                },
-                "full_name": {
-                    "type": "text",
-                    "analyzer": "ru_en"
-                },
-                "films": {
-                    "type": "nested",
-                    "dynamic": "strict",
-                    "properties": {
-                        "uuid": {
-                            "type": "keyword"
-                        },
-                        "roles": {
-                            "type": "text",
-                            "analyzer": "ru_en"
-                        }
-                    }
-                }
-            }
         }
     }
 
-    service_url: str = Field('http://127.0.0.1:8000')
 
-
-class SearchTestSettings(BaseTestSettings):
-    es_index: str = 'movies'
-
-
-class FilmTestSettings(BaseTestSettings):
+class FilmTestSettings(SearchTestSettings):
     es_index: str = 'movies'
     prefix: str = '/api/v1/films'
     page_size: int = ES_MOVIES_NUMBER_OF_TEST_RECORDS + 1
@@ -195,3 +177,4 @@ class FilmTestSettings(BaseTestSettings):
 session_settings = SessionSettings()
 search_test_settings = SearchTestSettings()
 film_test_settings = FilmTestSettings()
+genre_test_settings = GenreTestSettings()
