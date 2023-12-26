@@ -1,4 +1,7 @@
+import sys
+from random import randint, sample
 from typing import Callable
+from uuid import uuid4
 
 import aiohttp
 import pytest
@@ -82,6 +85,112 @@ def make_get_request(http_session):
             status = response.status
         return {'status': status, 'body': body, 'headers': headers}
 
+        pass
+
+    return inner
+
+
+@pytest.fixture
+def get_all_records(make_get_request):
+    async def inner(settings: BaseTestSettings, url: str, page_size: int, limit: int) -> list[dict]:
+        query_data = {'page_size': page_size, 'page_number': 1}
+
+        result = []
+        while True:
+            response = await make_get_request(url, settings, **query_data)
+            if response['status'] == 404:
+                break
+
+            assert response['status'] == 200
+            assert len(response['body']) <= page_size
+            if len(response['body']) == 0:
+                break
+
+            result.extend(list[dict](response['body']))
+            assert len(result) <= limit
+            query_data['page_number'] += 1
+
+        return result
+
+    return inner
+
+
+POSSIBLE_GENRES = ['actor', 'writer', 'director']
+
+
+@pytest.fixture
+def faker_seed():
+    return randint(0, sys.maxsize)
+
+
+@pytest.fixture
+def generate_genre_index(faker):
+    async def inner(quantity: int = None) -> list[dict[str, str]]:
+        return list([{
+            'uuid': str(uuid4()),
+            'name':  faker.word(),
+        } for _ in range(quantity or 100)])
+
+    return inner
+
+
+@pytest.fixture()
+def generate_person_names(faker):
+    async def inner(quantity: int = None) -> list[dict[str, str]]:
+        return list([{
+            'uuid': str(uuid4()),
+            'full_name': faker.name(),
+        } for _ in range(quantity or 1000)])
+
+    return inner
+
+
+@pytest.fixture
+def generate_movie_names(faker):
+    async def inner(quantity: int = None) -> list[dict[str, str]]:
+        return list([{
+            'uuid': str(uuid4()),
+            'title': faker.sentence()
+        } for _ in range(quantity or 1000)])
+
+    return inner
+
+
+@pytest.fixture
+def generate_movies_index(faker, generate_genre_index, generate_movie_names, generate_person_names):
+    async def inner(
+            quantity: int = None, *,
+            genres_limit: int = 3, actors_limit: int = 10, writers_limit: int = 3, directors_limit: int = 3
+    ) -> list[dict[str, str | dict]]:
+        persons = await generate_person_names(quantity=quantity*max([actors_limit, writers_limit, directors_limit])//2)
+        return list([{
+            **movie,
+            'imdb_rating': faker.pyfloat(positive=True, max_value=10, right_digits=2),
+            'description': faker.paragraph(),
+            'genre': sample(await generate_genre_index(), randint(1, genres_limit)),
+            'actors': sample(persons, randint(1, actors_limit)),
+            'writers': sample(persons, randint(1, writers_limit)),
+            'directors': sample(persons, randint(1, directors_limit)),
+        } for movie in (await generate_movie_names(quantity))])
+
+    return inner
+
+
+@pytest.fixture
+def generate_persons_index(generate_person_names, generate_movie_names):
+    async def inner(
+            movies_index: list, quantity: int, *, films_limit: int = 20
+    ) -> list[dict[str, str | list[str] | list[dict[str, str]]]]:
+        roles = POSSIBLE_GENRES
+        return list([{
+            **person,
+            'films': list(map(
+                lambda film: {
+                    'uuid': film['uuid'],
+                    'roles': sample(roles, randint(1, len(roles)))
+                }, sample(movies_index, randint(1, films_limit))
+            )),
+        } for person in (await generate_person_names(quantity))])
         pass
 
     return inner
