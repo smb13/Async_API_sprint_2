@@ -80,7 +80,7 @@ async def films_by_person(
 @router.get('/search/', response_model=list[Person],
             description='Поиск персоналий', name='Поиск персоналий')
 async def persons_search(
-        query: Annotated[str, Query(description='строка поиска', example='Clooney')] = None,
+        query: Annotated[str, Query(description='строка поиска', example='Lucas')] = None,
         page_size: Annotated[int, Query(description='Число элементов на странице'), Gt(0), Le(100)] = 50,
         page_number: Annotated[int, Query(description='Номер страницы '), Gt(0)] = 1,
         person_service: PersonService = Depends(get_person_service)

@@ -1,13 +1,11 @@
-import orjson
 from functools import lru_cache
 
-from elasticsearch import AsyncElasticsearch, NotFoundError
+import orjson
 from fastapi import Depends
 from pydantic import UUID4
-from redis.asyncio import Redis
 
-from db.elastic import get_elastic
-from db.redisdb import get_redis
+from db.cache import Cache, get_cache
+from db.database import DataBase, get_db
 from models.genre import Genre
 
 GENRE_CACHE_EXPIRE_IN_SECONDS = 60 * 5  # 5 минут
@@ -18,9 +16,9 @@ class GenreService:
     GenreService содержит бизнес-логику по работе с жанрами.
     """
 
-    def __init__(self, redis: Redis, elastic: AsyncElasticsearch):
-        self.redis = redis
-        self.elastic = elastic
+    def __init__(self, cache: Cache, db: DataBase):
+        self.cache = cache
+        self.db = db
 
     # Get_by_id возвращает объект жанра. Он опционален, так как жанр может отсутствовать в базе
     async def get_by_id(self, genre_id: UUID4) -> Genre | None:
@@ -28,7 +26,7 @@ class GenreService:
         genre = await self._genre_from_cache(genre_id)
         if not genre:
             # Если жанра нет в кеше, то ищем его в Elasticsearch
-            genre = await self._get_genre_from_elastic(genre_id)
+            genre = await self._get_genre_from_db(genre_id)
             if not genre:
                 # Если он отсутствует в Elasticsearch, значит, жанра вообще нет в базе
                 return None
@@ -44,8 +42,8 @@ class GenreService:
         genres = await self._genres_list_from_cache(page=page, per_page=per_page)
         if not genres:
             # Если жанров нет в кеше, то ищем их в Elasticsearch
-            genres = await self._get_genres_list_from_elastic(page=page, per_page=per_page
-                                                              )
+            genres = await self._get_genres_list_from_db(page=page, per_page=per_page
+                                                         )
             if not genres:
                 # Если он отсутствует в Elasticsearch, значит, жанра вообще нет в базе
                 return []
@@ -55,14 +53,11 @@ class GenreService:
 
         return genres
 
-    async def _get_genre_from_elastic(self, genre_id: UUID4) -> Genre | None:
-        try:
-            doc = await self.elastic.get(index='genres', id=genre_id)
-        except NotFoundError:
-            return None
-        return Genre(**doc['_source'])
+    async def _get_genre_from_db(self, genre_id: UUID4) -> Genre | None:
+        doc = await self.db.get(source='genres', id_=genre_id, return_class=Genre)
+        return doc
 
-    async def _get_genres_list_from_elastic(
+    async def _get_genres_list_from_db(
             self, *, page: int | None = 1, per_page: int | None = 1
     ) -> list[Genre] | None:
         # Проверка аргументов.
@@ -70,51 +65,45 @@ class GenreService:
             page = 1
         if per_page <= 0:
             per_page = 1
-        try:
-            doc = await self.elastic.search(
-                index='genres',
-                from_=(page - 1) * per_page,
-                size=per_page
-            )
-        except NotFoundError:
-            return None
-        return list(map(lambda flm: Genre(**flm['_source']), doc['hits']['hits']))
+        doc = await self.db.search(
+            source='genres',
+            page=page,
+            per_page=per_page,
+            return_class=Genre
+        )
+        return doc
 
     async def _genre_from_cache(self, genre_id: UUID4) -> Genre | None:
-        # Пытаемся получить данные о жанре из кеша, используя команду get https://redis.io/commands/get/
-        data = await self.redis.get("genre:" + str(genre_id))
-        if not data:
-            return None
-
-        genre = Genre.model_validate_json(data)
+        genre = await self.cache.get(name="genre:" + str(genre_id), return_class=Genre)
         return genre
 
     async def _genres_list_from_cache(self, **kwargs) -> list[Genre] | None:
-        # Пытаемся получить данные о жанре из кеша, используя команду get https://redis.io/commands/get/
-        data = await self.redis.get("genres:" + orjson.dumps(kwargs, option=orjson.OPT_SORT_KEYS).decode("utf-8"))
-        if not data:
-            return None
-
-        return [Genre.model_validate_json(genre) for genre in orjson.loads(data)]
+        genres_list = await self.cache.get_list(
+            name="genres:" + orjson.dumps(kwargs, option=orjson.OPT_SORT_KEYS).decode('utf-8'),
+            return_class=Genre)
+        return genres_list
 
     async def _put_genre_to_cache(self, genre: Genre):
         # Сохраняем данные о жанре в кэше, указывая время жизни.
-        await self.redis.set("genre:" + str(genre.uuid), genre.model_dump_json(), GENRE_CACHE_EXPIRE_IN_SECONDS)
+        await self.cache.set(
+            name="genre:" + str(genre.uuid),
+            value=genre.model_dump_json(),
+            ex=GENRE_CACHE_EXPIRE_IN_SECONDS
+        )
 
     async def _put_genres_list_to_cache(self, genres: list[Genre], **kwargs):
-        await self.redis.set(
-            "genres:" + orjson.dumps(kwargs, option=orjson.OPT_SORT_KEYS).decode("utf-8"),
-            orjson.dumps([ob.model_dump_json() for ob in genres]),
-            GENRE_CACHE_EXPIRE_IN_SECONDS
+        await self.cache.set(
+            name="genres:" + orjson.dumps(kwargs, option=orjson.OPT_SORT_KEYS).decode('utf-8'),
+            value=orjson.dumps([ob.model_dump_json() for ob in genres]),
+            ex=GENRE_CACHE_EXPIRE_IN_SECONDS
         )
-        return None
 
 
 # Get_genre_service — это провайдер GenreService.
 # Используем lru_cache-декоратор, чтобы создать объект сервиса в едином экземпляре (синглтон)
 @lru_cache()
 def get_genre_service(
-        redis: Redis = Depends(get_redis),
-        elastic: AsyncElasticsearch = Depends(get_elastic),
+        cache: Cache = Depends(get_cache),
+        db: DataBase = Depends(get_db),
 ) -> GenreService:
-    return GenreService(redis, elastic)
+    return GenreService(cache, db)
