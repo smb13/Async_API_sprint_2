@@ -1,13 +1,11 @@
-import orjson
 from functools import lru_cache
 
-from elasticsearch import AsyncElasticsearch, NotFoundError
+import orjson
 from fastapi import Depends
 from pydantic import UUID4
-from redis.asyncio import Redis
 
-from db.elastic import get_elastic
-from db.redisdb import get_redis
+from db.cache import Cache, get_cache
+from db.database import DataBase, get_db
 from models.film import Film
 
 FILM_CACHE_EXPIRE_IN_SECONDS = 60 * 5  # 5 минут
@@ -17,9 +15,9 @@ class FilmService:
     """
     FilmService содержит бизнес-логику по работе с фильмами.
     """
-    def __init__(self, redis: Redis, elastic: AsyncElasticsearch):
-        self.redis = redis
-        self.elastic = elastic
+    def __init__(self, cache: Cache, db: DataBase):
+        self.cache = cache
+        self.db = db
 
     # Get_by_id возвращает объект фильма. Он опционален, так как фильм может отсутствовать в базе
     async def get_by_id(self, film_id: UUID4) -> Film | None:
@@ -27,7 +25,7 @@ class FilmService:
         film = await self._film_from_cache(film_id)
         if not film:
             # Если фильма нет в кеше, то ищем его в Elasticsearch
-            film = await self._get_film_from_elastic(film_id)
+            film = await self._get_film_from_db(film_id)
             if not film:
                 # Если он отсутствует в Elasticsearch, значит, фильма вообще нет в базе
                 return None
@@ -44,7 +42,7 @@ class FilmService:
         films = await self._films_list_from_cache(sort=sort, genre=genre, page=page, per_page=per_page, query=query)
         if not films:
             # Если фильмов нет в кеше, то ищем их в Elasticsearch
-            films = await self._get_films_list_from_elastic(
+            films = await self._get_films_list_from_db(
                 sort=sort, genre=genre, page=page, per_page=per_page, film=query
             )
             if not films:
@@ -56,14 +54,11 @@ class FilmService:
 
         return films
 
-    async def _get_film_from_elastic(self, film_id: UUID4) -> Film | None:
-        try:
-            doc = await self.elastic.get(index='movies', id=film_id)
-        except NotFoundError:
-            return None
-        return Film(**doc['_source'])
+    async def _get_film_from_db(self, film_id: UUID4) -> Film | None:
+        doc = await self.db.get(source='movies', id_=film_id, return_class=Film)
+        return doc
 
-    async def _get_films_list_from_elastic(
+    async def _get_films_list_from_db(
             self, *, sort: str | None, genre: str | None,
             page: int | None = 1, per_page: int | None = 1, film: str | None = None
     ) -> list[Film] | None:
@@ -72,60 +67,50 @@ class FilmService:
             page = 1
         if per_page <= 0:
             per_page = 1
-        try:
-            must = []
-            if genre:
-                must.append({
-                    "nested": {"path": "genre", "query": {"bool": {"must": [{"match": {"genre.name": genre}}]}}}
-                })
-            if film:
-                must.append({"match": {"title": film}})
-            doc = await self.elastic.search(
-                index='movies',
-                body={"query": {"bool": {"must": must}}},
-                from_=(page - 1) * per_page,
-                size=per_page,
-                sort=(sort[1:]+":desc" if sort[0] == '-' else sort) if sort else None
-            )
-        except NotFoundError:
-            return None
-        return list(map(lambda flm: Film(**flm['_source']), doc['hits']['hits']))
+        doc = await self.db.search(
+            source='movies',
+            search_field='title',
+            search_string=film,
+            filter_field='genre.name',
+            filter_string=genre,
+            sort=sort,
+            page=page,
+            per_page=per_page,
+            return_class=Film
+        )
+        return doc
 
     async def _film_from_cache(self, film_id: UUID4) -> Film | None:
-        # Пытаемся получить данные о фильме из кеша, используя команду get https://redis.io/commands/get/
-        data = await self.redis.get("movie:" + str(film_id))
-        if not data:
-            return None
-
-        film = Film.model_validate_json(data)
+        film = await self.cache.get(name="movie:" + str(film_id), return_class=Film)
         return film
 
     async def _films_list_from_cache(self, **kwargs) -> list[Film] | None:
-        # Пытаемся получить данные о фильме из кеша, используя команду get https://redis.io/commands/get/
-        data = await self.redis.get("movies:" + orjson.dumps(kwargs, option=orjson.OPT_SORT_KEYS).decode('utf-8'))
-        if not data:
-            return None
-
-        return [Film.model_validate_json(film) for film in orjson.loads(data)]
+        films_list = await self.cache.get_list(
+            name="movies:" + orjson.dumps(kwargs, option=orjson.OPT_SORT_KEYS).decode('utf-8'),
+            return_class=Film)
+        return films_list
 
     async def _put_film_to_cache(self, film: Film):
         # Сохраняем данные о фильме в кэше, указывая время жизни.
-        await self.redis.set("movie:" + str(film.uuid), film.model_dump_json(), FILM_CACHE_EXPIRE_IN_SECONDS)
+        await self.cache.set(
+            name="movie:" + str(film.uuid),
+            value=film.model_dump_json(),
+            ex=FILM_CACHE_EXPIRE_IN_SECONDS
+        )
 
     async def _put_films_list_to_cache(self, films: list[Film], **kwargs):
-        await self.redis.set(
-            "movies:" + orjson.dumps(kwargs, option=orjson.OPT_SORT_KEYS).decode('utf-8'),
-            orjson.dumps([ob.model_dump_json() for ob in films]),
-            FILM_CACHE_EXPIRE_IN_SECONDS
+        await self.cache.set(
+            name="movies:" + orjson.dumps(kwargs, option=orjson.OPT_SORT_KEYS).decode('utf-8'),
+            value=orjson.dumps([ob.model_dump_json() for ob in films]),
+            ex=FILM_CACHE_EXPIRE_IN_SECONDS
         )
-        return None
 
 
 # Get_film_service — это провайдер FilmService.
 # Используем lru_cache-декоратор, чтобы создать объект сервиса в едином экземпляре (синглтон)
 @lru_cache()
 def get_film_service(
-        redis: Redis = Depends(get_redis),
-        elastic: AsyncElasticsearch = Depends(get_elastic),
+        cache: Cache = Depends(get_cache),
+        db: DataBase = Depends(get_db),
 ) -> FilmService:
-    return FilmService(redis, elastic)
+    return FilmService(cache, db)
