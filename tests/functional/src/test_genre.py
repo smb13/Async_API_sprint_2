@@ -3,7 +3,7 @@ import uuid
 
 import pytest
 
-from tests.functional.settings import genre_test_settings
+from settings import genre_test_settings
 
 
 @pytest.mark.asyncio(scope="session")
