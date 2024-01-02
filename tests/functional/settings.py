@@ -197,7 +197,13 @@ class PersonTestSettings(BaseTestSettings):
     }
 
 
+class BackoffSettings(BaseSettings):
+    max_tries: int = 5
+    max_time: int = 60
+
+
 session_settings = SessionSettings()
 film_test_settings = FilmTestSettings()
 genre_test_settings = GenreTestSettings()
 person_test_settings = PersonTestSettings()
+backoff_settings = BackoffSettings()

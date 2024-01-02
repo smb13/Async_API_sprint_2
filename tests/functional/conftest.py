@@ -4,12 +4,13 @@ from typing import Callable
 from uuid import uuid4
 
 import aiohttp
+import backoff
 import pytest
 import pytest_asyncio
 from elasticsearch import AsyncElasticsearch
 from redis.asyncio import Redis
 
-from tests.functional.settings import BaseTestSettings, session_settings
+from tests.functional.settings import BaseTestSettings, session_settings, backoff_settings
 
 
 @pytest_asyncio.fixture(scope='session')
@@ -19,6 +20,10 @@ async def es_client() -> AsyncElasticsearch:
     await client.close()
 
 
+@backoff.on_exception(backoff.expo,
+                      Exception,
+                      max_tries=backoff_settings.max_tries,
+                      max_time=backoff_settings.max_time)
 @pytest.fixture(scope='session')
 def es_drop_index(es_client) -> Callable:
     async def inner(settings: BaseTestSettings) -> None:
@@ -35,6 +40,10 @@ async def redis_client() -> Redis:
     await client.aclose()
 
 
+@backoff.on_exception(backoff.expo,
+                      Exception,
+                      max_tries=backoff_settings.max_tries,
+                      max_time=backoff_settings.max_time)
 @pytest_asyncio.fixture
 def redis_flush_db(redis_client) -> Callable:
     async def inner() -> None:
@@ -50,6 +59,10 @@ async def http_session() -> aiohttp.ClientSession:
     await session.close()
 
 
+@backoff.on_exception(backoff.expo,
+                      Exception,
+                      max_tries=backoff_settings.max_tries,
+                      max_time=backoff_settings.max_time)
 @pytest.fixture
 def es_write_data(es_client, es_drop_index) -> Callable:
     async def inner(data: list[dict], settings: BaseTestSettings) -> None:
@@ -74,6 +87,10 @@ def es_write_data(es_client, es_drop_index) -> Callable:
     return inner
 
 
+@backoff.on_exception(backoff.expo,
+                      Exception,
+                      max_tries=backoff_settings.max_tries,
+                      max_time=backoff_settings.max_time)
 @pytest.fixture
 def make_get_request(http_session):
     async def inner(url: str, settings: BaseTestSettings, **kwargs):
@@ -90,6 +107,10 @@ def make_get_request(http_session):
     return inner
 
 
+@backoff.on_exception(backoff.expo,
+                      Exception,
+                      max_tries=backoff_settings.max_tries,
+                      max_time=backoff_settings.max_time)
 @pytest.fixture
 def get_all_records(make_get_request):
     async def inner(settings: BaseTestSettings, url: str, page_size: int, limit: int) -> list[dict]:
