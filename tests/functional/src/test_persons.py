@@ -3,7 +3,7 @@ from uuid import uuid4
 
 import pytest
 
-from tests.functional.settings import person_test_settings, film_test_settings
+from settings import person_test_settings, film_test_settings
 
 
 async def prepare_indexes(generate_movies_index, generate_persons_index, es_write_data):

@@ -3,8 +3,8 @@ import uuid
 
 import pytest
 
-from functional.testdata.films_test_data import get_films_test_data, get_absent_genre
-from tests.functional.settings import film_test_settings
+from testdata.films_test_data import get_films_test_data, get_absent_genre
+from settings import film_test_settings
 
 
 async def prepare_index(generate_movies_index, es_write_data):
@@ -14,16 +14,16 @@ async def prepare_index(generate_movies_index, es_write_data):
 
 
 @pytest.mark.asyncio(scope="session")
-async def test_film_list(
-        es_write_data, es_drop_index, es_client, redis_flush_db, generate_movies_index, get_all_records
-, make_get_request):
+async def test_films_list(
+        es_write_data, es_drop_index, es_client, redis_flush_db, generate_movies_index, get_all_records,
+        make_get_request):
     # 1. Подготовка данных.
     es_data = await prepare_index(generate_movies_index, es_write_data)
 
     (short_films_data, sorted_short_films_data, sorted_desc_short_films_data, genre_to_filter,
      filtered_short_films_data) = await get_films_test_data(es_data)
 
-    absent_genre = await get_absent_genre(es_data)
+    absent_genre = await get_absent_genre()
 
     page_size = random.randint(10, 50)
 
@@ -86,7 +86,7 @@ async def check_valid_requests_film_get(film_ids, film_index, make_get_request):
 
 
 @pytest.mark.asyncio(scope="session")
-async def test_film_get(es_write_data, redis_flush_db, make_get_request, es_drop_index, generate_movies_index):
+async def test_films_get(es_write_data, redis_flush_db, make_get_request, es_drop_index, generate_movies_index):
     # 1. Подготовка данных.
     film_index = await prepare_index(generate_movies_index, es_write_data)
 
