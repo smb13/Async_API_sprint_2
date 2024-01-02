@@ -2,7 +2,7 @@ import pytest
 
 from tests.functional.settings import search_test_settings
 
-from tests.functional.testdata.es_test_data import (ES_MOVIES_TEST_DATA)
+from tests.functional.testdata.films_test_data import (ES_MOVIES_TEST_DATA)
 
 
 @pytest.mark.parametrize(

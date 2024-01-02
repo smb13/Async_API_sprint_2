@@ -1,7 +1,7 @@
 from pydantic import Field
 from pydantic_settings import BaseSettings
 
-from tests.functional.testdata.es_test_data import ES_MOVIES_NUMBER_OF_TEST_RECORDS
+from tests.functional.testdata.films_test_data import ES_MOVIES_NUMBER_OF_TEST_RECORDS
 
 
 class SessionSettings(BaseSettings):

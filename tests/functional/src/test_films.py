@@ -1,80 +1,107 @@
+import random
+import uuid
+
 import pytest
 
+from functional.testdata.films_test_data import get_films_test_data, get_absent_genre
 from tests.functional.settings import film_test_settings
-from tests.functional.testdata.es_test_data import (ES_MOVIES_TEST_DATA, ES_EXISTED_MOVIES_LAST,
-                                                    ES_EXISTED_MOVIES_LAST_UUID, ES_ABSENT_MOVIES_UUID,
-                                                    ES_MOVIES_A_HALF_OF_TEST_RECORDS, ES_MOVIES_NOT_FOUND_BODY,
-                                                    ES_NOT_UUID, ES_MOVIES_NUMBER_OF_TEST_RECORDS,
-                                                    ES_EXISTED_MOVIES_FIRST)
 
 
-@pytest.mark.parametrize(
-    'es_data, query_data, expected_answer', [
-        (ES_MOVIES_TEST_DATA, {'query': 'Wars', 'page_size': film_test_settings.page_size},
-         {'status': 200, 'length': ES_MOVIES_A_HALF_OF_TEST_RECORDS}),
-        (ES_MOVIES_TEST_DATA, {'query': 'Star', 'page_size': film_test_settings.page_size},
-         {'status': 200, 'length': ES_MOVIES_NUMBER_OF_TEST_RECORDS}),
-        (ES_MOVIES_TEST_DATA, {'query': 'Mashed potato', 'page_size': film_test_settings.page_size},
-         {'status': 404, 'length': 1}),
-        (ES_MOVIES_TEST_DATA, {'query': 13, 'page_size': film_test_settings.page_size},
-         {'status': 404, 'length': 1})
-    ]
-)
-@pytest.mark.asyncio(scope='session')
-async def test_search(es_write_data, make_get_request, es_data: list[dict], query_data, expected_answer):
-    await es_write_data(es_data, film_test_settings)
-
-    response = await make_get_request(f'{film_test_settings.prefix}/search', film_test_settings, **query_data)
-
-    assert response['status'] == expected_answer['status']
-    assert len(response['body']) == expected_answer['length']
+async def prepare_index(generate_movies_index, es_write_data):
+    movies_index = await generate_movies_index(random.randint(1, 1000))
+    await es_write_data(movies_index, film_test_settings)
+    return movies_index
 
 
-@pytest.mark.parametrize(
-    'es_data, film_id, expected_answer, expected_body', [
-        (ES_MOVIES_TEST_DATA, ES_EXISTED_MOVIES_LAST_UUID, {'status': 200, 'length': 8}, ES_EXISTED_MOVIES_LAST),
-        (ES_MOVIES_TEST_DATA, ES_ABSENT_MOVIES_UUID, {'status': 404, 'length': 1}, ES_MOVIES_NOT_FOUND_BODY),
-        (ES_MOVIES_TEST_DATA, ES_NOT_UUID, {'status': 422, 'length': 1}, None)
-    ]
-)
-@pytest.mark.asyncio(scope='session')
-async def test_get_byid(es_write_data, make_get_request, es_data: list[dict], film_id, expected_answer, expected_body):
-    await es_write_data(es_data, film_test_settings)
+@pytest.mark.asyncio(scope="session")
+async def test_film_list(
+        es_write_data, es_drop_index, es_client, redis_flush_db, generate_movies_index, get_all_records
+, make_get_request):
+    # 1. Подготовка данных.
+    es_data = await prepare_index(generate_movies_index, es_write_data)
 
-    response = await make_get_request(f'{film_test_settings.prefix}/{film_id}', film_test_settings)
+    (short_films_data, sorted_short_films_data, sorted_desc_short_films_data, genre_to_filter,
+     filtered_short_films_data) = await get_films_test_data(es_data)
 
-    assert response['status'] == expected_answer['status']
-    assert len(response['body']) == expected_answer['length']
-    if expected_body:
-        assert response['body'] == expected_body
+    absent_genre = await get_absent_genre(es_data)
+
+    page_size = random.randint(10, 50)
+
+    # 2. Тестирование получения данных по API.
+    await redis_flush_db()
+
+    result = await get_all_records(film_test_settings, '/api/v1/films/', page_size, len(es_data))
+    assert len(result) == len(es_data)
+    assert result == short_films_data
+
+    result = await get_all_records(film_test_settings, '/api/v1/films/?sort=imdb_rating', page_size, len(es_data))
+    assert result == sorted_short_films_data
+    assert len(result) == len(sorted_short_films_data)
+
+    result = await get_all_records(film_test_settings, '/api/v1/films/?sort=-imdb_rating', page_size, len(es_data))
+    assert result == sorted_desc_short_films_data
+    assert len(result) == len(sorted_desc_short_films_data)
+
+    result = await get_all_records(film_test_settings, f'/api/v1/films/?genre={genre_to_filter}', page_size,
+                                   len(es_data))
+    assert result == filtered_short_films_data
+    assert len(result) == len(filtered_short_films_data)
+
+    response = await make_get_request(f'/api/v1/films/?genre={absent_genre}', film_test_settings)
+    assert response['status'] == 404
+
+    # 3. Тестирование получение данных из кэша.
+    await es_drop_index(film_test_settings)
+    result = await get_all_records(film_test_settings, '/api/v1/films/', page_size, len(es_data))
+    assert len(result) == len(es_data)
+    assert result == short_films_data
+
+    result = await get_all_records(film_test_settings, '/api/v1/films/?sort=imdb_rating', page_size, len(es_data))
+    assert result == sorted_short_films_data
+    assert len(result) == len(sorted_short_films_data)
+
+    result = await get_all_records(film_test_settings, '/api/v1/films/?sort=-imdb_rating', page_size, len(es_data))
+    assert result == sorted_desc_short_films_data
+    assert len(result) == len(sorted_desc_short_films_data)
+
+    result = await get_all_records(film_test_settings, f'/api/v1/films/?genre={genre_to_filter}', page_size,
+                                   len(es_data))
+    assert result == filtered_short_films_data
+    assert len(result) == len(filtered_short_films_data)
+
+    response = await make_get_request(f'/api/v1/films/?genre={absent_genre}', film_test_settings)
+    assert response['status'] == 404
+
+    # 4. Очистка.
+    await es_drop_index(film_test_settings)
+    await redis_flush_db()
 
 
-@pytest.mark.parametrize(
-    'es_data, query_data, expected_answer', [
-        (ES_MOVIES_TEST_DATA, {'page_size': film_test_settings.page_size, 'page_number': 1},
-         {'status': 200, 'length': ES_MOVIES_NUMBER_OF_TEST_RECORDS, 'fist_title': None, 'last_title': None}),
-        (ES_MOVIES_TEST_DATA, {'page_size': film_test_settings.page_size, 'page_number': 1, 'genre': 'Fantasy'},
-         {'status': 200, 'length': ES_MOVIES_A_HALF_OF_TEST_RECORDS, 'fist_title': None, 'last_title': None}),
-        (ES_MOVIES_TEST_DATA, {'page_size': film_test_settings.page_size, 'page_number': 1, 'genre': 'Sci-Fi'},
-         {'status': 200, 'length': ES_MOVIES_NUMBER_OF_TEST_RECORDS, 'fist_title': None, 'last_title': None}),
-        (ES_MOVIES_TEST_DATA, {'page_size': film_test_settings.page_size, 'page_number': 1, 'genre': 'Animation'},
-         {'status': 404, 'length': 1, 'fist_title': None, 'last_title': None}),
-        (ES_MOVIES_TEST_DATA, {'page_size': film_test_settings.page_size, 'page_number': 1, 'sort': '-imdb_rating'},
-         {'status': 200, 'length': ES_MOVIES_NUMBER_OF_TEST_RECORDS, 'fist_title': ES_EXISTED_MOVIES_LAST.get('title'),
-         'last_title': ES_EXISTED_MOVIES_FIRST.get('title')}),
-        (ES_MOVIES_TEST_DATA, {'page_size': film_test_settings.page_size, 'page_number': 1, 'sort': 'imdb_rating'},
-         {'status': 200, 'length': ES_MOVIES_NUMBER_OF_TEST_RECORDS, 'fist_title': ES_EXISTED_MOVIES_FIRST.get('title'),
-         'last_title': ES_EXISTED_MOVIES_LAST.get('title')})
-    ]
-)
-@pytest.mark.asyncio(scope='session')
-async def test_get_list(es_write_data, make_get_request, es_data: list[dict], query_data, expected_answer):
-    await es_write_data(es_data, film_test_settings)
+async def check_valid_requests_film_get(film_ids, film_index, make_get_request):
+    for ind in film_ids:
+        film = film_index[ind]
+        response = await make_get_request(f'/api/v1/films/{film["uuid"]}', film_test_settings)
+        assert response['status'] == 200
+        assert response['body'] == film
 
-    response = await make_get_request(f'{film_test_settings.prefix}/', film_test_settings, **query_data)
 
-    assert response['status'] == expected_answer['status']
-    assert len(response['body']) == expected_answer['length']
-    if expected_answer['fist_title'] and expected_answer['last_title']:
-        assert response['body'][0].get('title') == expected_answer['fist_title']
-        assert response['body'][len(response['body']) - 1].get('title') == expected_answer['last_title']
+@pytest.mark.asyncio(scope="session")
+async def test_film_get(es_write_data, redis_flush_db, make_get_request, es_drop_index, generate_movies_index):
+    # 1. Подготовка данных.
+    film_index = await prepare_index(generate_movies_index, es_write_data)
+
+    film_ids = [random.randint(0, len(film_index) - 1) for _ in range(1, 20)]
+    invalid_uuids = [str(uuid.uuid4()) for _ in range(1, 20)]
+
+    # 2. Тестирование получения неверных данных по API.
+    for tid in invalid_uuids:
+        response = await make_get_request(f'/api/v1/films/{tid}', film_test_settings)
+        assert response['status'] == 404
+
+    # 3. Тестирование получения верных данных по API.
+    await redis_flush_db()
+    await check_valid_requests_film_get(film_ids, film_index, make_get_request)
+
+    # 4. Тестирование получения верных данных из кэша.
+    await es_drop_index(film_test_settings)
+    await check_valid_requests_film_get(film_ids, film_index, make_get_request)
