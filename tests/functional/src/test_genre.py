@@ -1,7 +1,8 @@
+import pytest
 import random
 import uuid
 
-import pytest
+from http import HTTPStatus
 
 from settings import genre_test_settings
 
@@ -37,7 +38,7 @@ async def check_valid_requests_genre_get(genre_ids, genre_index, make_get_reques
     for ind in genre_ids:
         genre = genre_index[ind]
         response = await make_get_request(f'/api/v1/genres/{genre["uuid"]}', genre_test_settings)
-        assert response['status'] == 200
+        assert response['status'] == HTTPStatus.OK
         assert response['body'] == genre
 
 
@@ -53,7 +54,7 @@ async def test_genre_get(es_write_data, redis_flush_db, make_get_request, es_dro
     # 2. Тестирование получения неверных данных по API.
     for tid in invalid_uuids:
         response = await make_get_request(f'/api/v1/genres/{tid}', genre_test_settings)
-        assert response['status'] == 404
+        assert response['status'] == HTTPStatus.NOT_FOUND
 
     # 3. Тестирование получения верных данных по API.
     await redis_flush_db()

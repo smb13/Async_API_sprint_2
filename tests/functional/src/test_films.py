@@ -1,7 +1,8 @@
+import pytest
 import random
 import uuid
 
-import pytest
+from http import HTTPStatus
 
 from testdata.films_test_data import get_films_test_data, get_absent_genre
 from settings import film_test_settings
@@ -48,7 +49,7 @@ async def test_films_list(
     assert len(result) == len(filtered_short_films_data)
 
     response = await make_get_request(f'/api/v1/films/?genre={absent_genre}', film_test_settings)
-    assert response['status'] == 404
+    assert response['status'] == HTTPStatus.NOT_FOUND
 
     # 3. Тестирование получение данных из кэша.
     await es_drop_index(film_test_settings)
@@ -70,7 +71,7 @@ async def test_films_list(
     assert len(result) == len(filtered_short_films_data)
 
     response = await make_get_request(f'/api/v1/films/?genre={absent_genre}', film_test_settings)
-    assert response['status'] == 404
+    assert response['status'] == HTTPStatus.NOT_FOUND
 
     # 4. Очистка.
     await es_drop_index(film_test_settings)
@@ -81,7 +82,7 @@ async def check_valid_requests_film_get(film_ids, film_index, make_get_request):
     for ind in film_ids:
         film = film_index[ind]
         response = await make_get_request(f'/api/v1/films/{film["uuid"]}', film_test_settings)
-        assert response['status'] == 200
+        assert response['status'] == HTTPStatus.OK
         assert response['body'] == film
 
 
@@ -96,7 +97,7 @@ async def test_films_get(es_write_data, redis_flush_db, make_get_request, es_dro
     # 2. Тестирование получения неверных данных по API.
     for tid in invalid_uuids:
         response = await make_get_request(f'/api/v1/films/{tid}', film_test_settings)
-        assert response['status'] == 404
+        assert response['status'] == HTTPStatus.NOT_FOUND
 
     # 3. Тестирование получения верных данных по API.
     await redis_flush_db()
