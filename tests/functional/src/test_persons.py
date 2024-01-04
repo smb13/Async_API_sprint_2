@@ -1,7 +1,8 @@
-import random
-from uuid import uuid4
-
 import pytest
+import random
+
+from http import HTTPStatus
+from uuid import uuid4
 
 from settings import person_test_settings, film_test_settings
 
@@ -18,7 +19,7 @@ async def check_valid_requests_person_get(person_ids, persons_index, make_get_re
     for ind in person_ids:
         person = persons_index[ind]
         response = await make_get_request(f'/api/v1/persons/{person["uuid"]}', person_test_settings)
-        assert response['status'] == 200
+        assert response['status'] == HTTPStatus.OK
         assert response['body'] == person
 
 
@@ -34,7 +35,7 @@ async def test_person_get(
     # 2. Тестирование получения неверных данных по API.
     for tid in [str(uuid4()) for _ in range(1, 20)]:
         response = await make_get_request(f'/api/v1/persons/{tid}', person_test_settings)
-        assert response['status'] == 404
+        assert response['status'] == HTTPStatus.NOT_FOUND
 
     # 3. Тестирование получения верных данных по API.
     await redis_flush_db()
@@ -73,7 +74,7 @@ async def test_person_get_films(
     # 2. Тестирование получения неверных данных по API.
     for tid in [str(uuid4()) for _ in range(1, 20)]:
         response = await make_get_request(f'/api/v1/persons/{tid}/film', person_test_settings)
-        assert response['status'] == 404
+        assert response['status'] == HTTPStatus.NOT_FOUND
 
     # 3. Тестирование получения верных данных по API.
     await redis_flush_db()
